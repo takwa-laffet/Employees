@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Employee Directory</title>
+</head>
+<body>
+  <h1>Employees</h1>
+  <ul id="employeeList"></ul>
+
+  <h2>Add Employee</h2>
+  <input type="text" id="name" placeholder="Name">
+  <input type="email" id="email" placeholder="Email">
+  <input type="text" id="department" placeholder="Department">
+  <button onclick="addEmployee()">Add</button>
+
+  <script>
+    async function fetchEmployees() {
+      const res = await fetch('/employees');
+      const employees = await res.json();
+      const list = document.getElementById('employeeList');
+      list.innerHTML = '';
+      employees.forEach(emp => {
+        const li = document.createElement('li');
+        li.textContent = `${emp.name} (${emp.email}) - ${emp.department}`;
+        list.appendChild(li);
+      });
+    }
+
+    async function addEmployee() {
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const department = document.getElementById('department').value;
+
+      await fetch('/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, department })
+      });
+
+      fetchEmployees();
+    }
+
+    fetchEmployees();
+  </script>
+</body>
+</html>
