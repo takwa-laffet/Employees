@@ -1,0 +1,5 @@
+title = "Gitleaks config for employee-directory"
+[[rules]]
+description = "Generic API Key"
+regex = '''(?i)apikey\s*[:=]\s*['"][0-9a-zA-Z]{32,}['"]'''
+tags = ["key", "api"]
