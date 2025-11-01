@@ -2,6 +2,9 @@ package com.example.employeedirectory.controller;
 
 import com.example.employeedirectory.model.Employee;
 import com.example.employeedirectory.service.EmployeeService;
+
+import jakarta.validation.Valid;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,7 +25,7 @@ public class EmployeeController {
     }
 
     @PostMapping
-    public Employee create(@RequestBody Employee employee) {
+    public Employee create(@Valid @RequestBody Employee employee) {
         return service.save(employee);
     }
 
