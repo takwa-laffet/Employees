@@ -2,17 +2,103 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <title>Add/Edit Employee</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 500px;
+            background-color: #fff;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            text-align: center;
+            color: #444;
+            margin-bottom: 30px;
+        }
+
+        form p {
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+            transform: scale(1.03);
+        }
+
+        a {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #4CAF50;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        a:hover {
+            color: #388e3c;
+        }
+
+        @media (max-width: 550px) {
+            .container {
+                margin: 20px;
+                padding: 20px;
+            }
+        }
+    </style>
 </head>
 <body>
-<h2 th:text="${employee.id} != null ? 'Edit Employee' : 'New Employee'"></h2>
-<form th:action="@{/employees}" th:object="${employee}" method="post">
-    <input type="hidden" th:field="*{id}"/>
-    <p>First Name: <input th:field="*{firstName}" /></p>
-    <p>Last Name: <input th:field="*{lastName}" /></p>
-    <p>Email: <input th:field="*{email}" /></p>
-    <p>Position: <input th:field="*{position}" /></p>
-    <p><button type="submit">Save</button></p>
-</form>
-<a href="/employees">Back to list</a>
+<div class="container">
+    <h2 th:text="${employee.id} != null ? 'Edit Employee' : 'New Employee'"></h2>
+    <form th:action="@{/employees}" th:object="${employee}" method="post">
+        <input type="hidden" th:field="*{id}"/>
+        <p>
+            <input th:field="*{firstName}" placeholder="First Name"/>
+        </p>
+        <p>
+            <input th:field="*{lastName}" placeholder="Last Name"/>
+        </p>
+        <p>
+            <input th:field="*{email}" placeholder="Email"/>
+        </p>
+        <p>
+            <input th:field="*{position}" placeholder="Position"/>
+        </p>
+        <p>
+            <button type="submit">Save</button>
+        </p>
+    </form>
+    <a href="/employees">Back to list</a>
+</div>
 </body>
 </html>
