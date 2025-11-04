@@ -113,7 +113,7 @@
 
             <!-- OWASP Dependency-Check plugin -->
             <plugin>
-                <groupId>org.owasp</groupId>
+            <groupId>org.owasp</groupId>
                 <artifactId>dependency-check-maven</artifactId>
                 <version>12.1.0</version>
                 <executions>
@@ -124,15 +124,8 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <!-- OSS Index credentials server ID from ~/.m2/settings.xml -->
-                    <ossIndexServerId>ossindex</ossIndexServerId>
-
-                    <!-- Optional: skip feed download if behind firewall -->
-                    <!-- <skip>true</skip> -->
-
-                    <!-- Optional: cache NVD CVE data locally to avoid rate limits -->
+                    <failBuildOnCVSS>10</failBuildOnCVSS> <!-- Build ne fail que pour CVSS >= 10 -->
                     <cveValidForHours>24</cveValidForHours>
-                    <dataMirroring>true</dataMirroring>
                 </configuration>
             </plugin>
 
