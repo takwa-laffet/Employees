@@ -113,7 +113,7 @@
 
             <!-- OWASP Dependency-Check plugin -->
             <plugin>
-            <groupId>org.owasp</groupId>
+                <groupId>org.owasp</groupId>
                 <artifactId>dependency-check-maven</artifactId>
                 <version>12.1.0</version>
                 <executions>
@@ -124,10 +124,14 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <failBuildOnCVSS>10</failBuildOnCVSS> <!-- Build ne fail que pour CVSS >= 10 -->
                     <cveValidForHours>24</cveValidForHours>
+                    <dataMirroring>true</dataMirroring>
+                    <analyzeOffline>true</analyzeOffline>
+                    <autoUpdate>false</autoUpdate>
+                    <failBuildOnCVSS>7</failBuildOnCVSS>
                 </configuration>
             </plugin>
+
 
         </plugins>
     </build>
