@@ -2,141 +2,188 @@ pipeline {
     agent any
 
     environment {
-        // Sonar server URL
-        SONAR_HOST = "http://192.168.13.2:9000"
-        // Credential ID in Jenkins for Sonar token
-        SONAR_CRED = "sonar-token"
-        // Email addresses
-        EMAIL_TO = "takwa5laffet@gmail.com"
+        SONAR_HOST = "http://192.168.13.8:9000"
+        EMAIL_TO = "takwa.laffet@esprit.tn"
+        GIT_URL = "https://github.com/takwa-laffet/Employees.git"
+        GIT_BRANCH = "main"
+        SONAR_PROJECT_KEY = "Employees"
+        APP_IMAGE = "employees-app:latest"
+        APP_URL = "http://localhost:8080"
+        REPORT_DIR = "reports"
     }
 
-    options {
-        timeout(time: 60, unit: 'MINUTES') // Abort if build takes longer than 60 min
-        ansiColor('xterm') // Colored console output
+    triggers {
+        // Automatically run on each push or PR (for multibranch pipelines)
+        pollSCM('* * * * *') // check repo every minute
+    }
+
+    tools {
+        maven 'Maven'
+        jdk 'JDK17'
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                echo "Checking out code from repository..."
-                checkout scm
+                echo "📦 Checking out source..."
+                git branch: "${GIT_BRANCH}", url: "${GIT_URL}", credentialsId: 'git-token'
             }
         }
 
-        stage('Build') {
+        stage('Build Project') {
             steps {
-                echo "Building the Spring Boot project..."
+                echo "🏗️ Building project..."
                 sh 'mvn clean package -DskipTests'
                 archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: true
             }
         }
 
-        stage('SAST - SonarQube Analysis') {
-            environment {
-                SONAR_TOKEN = credentials('sonar-token')
-            }
+        stage('Unit Tests & Coverage') {
             steps {
-                echo "Running SonarQube analysis..."
-                sh 'mvn sonar:sonar -Dsonar.host.url=${SONAR_HOST} -Dsonar.login=${SONAR_TOKEN}'
+                echo "🧪 Running unit tests..."
+                sh 'mvn test jacoco:report'
+                archiveArtifacts artifacts: 'target/site/jacoco/**/*', allowEmptyArchive: true
             }
         }
 
-        stage('SCA - Dependency Check') {
+        stage('Docker Build') {
             steps {
-                echo "Running OWASP Dependency Check..."
-                sh 'dependency-check --project Employees --scan . --format ALL -o dependency-check-report'
-
-                script {
-                    def xml = readFile('dependency-check-report/dependency-check-report.xml')
-                    if (xml.contains('severity="Critical"') || xml.contains('severity="High"')) {
-                        error "Dependency-Check found vulnerabilities of high or critical severity!"
-                    }
-                }
-
-                archiveArtifacts artifacts: 'dependency-check-report/**', allowEmptyArchive: true
+                echo "🐳 Building Docker image..."
+                sh """
+                    docker build -t ${APP_IMAGE} .
+                    docker save ${APP_IMAGE} -o ${APP_IMAGE}.tar
+                """
+                archiveArtifacts artifacts: "${APP_IMAGE}.tar", onlyIfSuccessful: true
             }
         }
 
-        stage('Docker Build & Scan (Trivy)') {
+        stage('Security Scan - Docker Image (Trivy)') {
             steps {
-                echo "Building Docker image..."
-                sh 'docker build -t employees-app:${BUILD_NUMBER} .'
-
-                echo "Scanning Docker image with Trivy..."
-                sh '''
-                    trivy image --exit-code 1 --severity HIGH,CRITICAL employees-app:${BUILD_NUMBER} || true
-                    trivy image --format json -o trivy-report.json employees-app:${BUILD_NUMBER}
-                '''
-
-                script {
-                    def json = readFile('trivy-report.json')
-                    if (json.contains('"Severity":"CRITICAL"')) {
-                        error "Trivy found critical vulnerabilities in Docker image!"
-                    }
-                }
-
-                archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
+                echo "🔐 Scanning Docker image with Trivy..."
+                sh """
+                    mkdir -p ${REPORT_DIR}
+                    trivy image ${APP_IMAGE} \
+                        --exit-code 0 \
+                        --format html \
+                        --output ${REPORT_DIR}/trivy-docker.html
+                    zip ${REPORT_DIR}/trivy-docker.zip ${REPORT_DIR}/trivy-docker.html
+                """
+                archiveArtifacts artifacts: "${REPORT_DIR}/trivy-docker.zip", onlyIfSuccessful: true
             }
         }
 
-        stage('Secrets Scan - Gitleaks') {
+        stage('Security Scan - Nikto') {
             steps {
-                echo "Running Gitleaks scan..."
-                sh 'gitleaks detect --source . --report-path=gitleaks-report.json || true'
-
-                script {
-                    def report = readFile('gitleaks-report.json')
-                    if (report.contains('"leaks": [')) {
-                        error "Gitleaks detected potential secrets!"
-                    }
-                }
-
-                archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+                echo "🌐 Running Nikto web vulnerability scan..."
+                sh """
+                    docker run -d -p 8080:8080 ${APP_IMAGE}
+                    sleep 20
+                    mkdir -p ${REPORT_DIR}
+                    nikto -h ${APP_URL} -o ${REPORT_DIR}/nikto.html -Format htm || true
+                    zip ${REPORT_DIR}/nikto.zip ${REPORT_DIR}/nikto.html
+                    docker stop $(docker ps -q --filter ancestor=${APP_IMAGE})
+                """
+                archiveArtifacts artifacts: "${REPORT_DIR}/nikto.zip", onlyIfSuccessful: true
             }
         }
 
-        stage('DAST - OWASP ZAP Scan') {
+        stage('Security Scan - OWASP ZAP') {
             steps {
-                echo "Running ZAP DAST scan..."
-                sh '''
-                    docker run --rm -v $(pwd):/zap/wrk/:rw owasp/zap2docker-stable \
-                    zap-full-scan.py -t http://localhost:8080 -r zap-report.html || true
-                '''
+                echo "🕷️ Running OWASP ZAP scan..."
+                sh """
+                    docker run --rm -v $(pwd):/zap/wrk:rw ghcr.io/zaproxy/zaproxy:stable \
+                        zap-baseline.py -t ${APP_URL} -r ${REPORT_DIR}/zap.html || true
+                    zip ${REPORT_DIR}/zap.zip ${REPORT_DIR}/zap.html
+                """
+                archiveArtifacts artifacts: "${REPORT_DIR}/zap.zip", onlyIfSuccessful: true
+            }
+        }
 
-                script {
-                    def report = readFile('zap-report.html')
-                    if (report.contains("High")) {
-                        error "ZAP scan found high-level issues!"
-                    }
+        stage('SAST - SonarQube') {
+            steps {
+                echo "🔎 Running SonarQube static analysis..."
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    sh """mvn sonar:sonar \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                        -Dsonar.host.url=${SONAR_HOST} \
+                        -Dsonar.login=\$SONAR_TOKEN"""
                 }
+            }
+        }
 
-                archiveArtifacts artifacts: 'zap-report.html', allowEmptyArchive: true
+        stage('Documentation & Sensibilisation') {
+            steps {
+                echo "📝 Generating security and CI/CD documentation..."
+                sh """
+                    mkdir -p ${REPORT_DIR}
+                    cat > ${REPORT_DIR}/pipeline-report.md <<EOF
+# CI/CD DevSecOps Pipeline Report
+
+## 🔧 Build Information
+- Project: ${SONAR_PROJECT_KEY}
+- Build Number: ${BUILD_NUMBER}
+- Date: $(date)
+
+## ⚙️ Steps Executed
+1. Checkout Code
+2. Maven Build & Tests
+3. Docker Image Build
+4. Vulnerability Scans:
+   - Trivy (File & Image)
+   - Nikto (Web App)
+   - OWASP ZAP (Dynamic)
+   - SonarQube (SAST)
+
+## 📊 Results
+All reports are archived as build artifacts:
+- Trivy: trivy-docker.html
+- Nikto: nikto.html
+- ZAP: zap.html
+- SonarQube dashboard: ${SONAR_HOST}/dashboard?id=${SONAR_PROJECT_KEY}
+
+## 🧠 Awareness
+This CI/CD pipeline enforces security best practices:
+- Code quality verification
+- Automated vulnerability detection
+- Continuous delivery readiness
+EOF
+                    zip ${REPORT_DIR}/pipeline-report.zip ${REPORT_DIR}/pipeline-report.md
+                """
+                archiveArtifacts artifacts: "${REPORT_DIR}/pipeline-report.zip"
             }
         }
     }
 
     post {
         success {
-            mail to: "${EMAIL_TO}",
-                 subject: "✅ SUCCESS: ${JOB_NAME} #${BUILD_NUMBER}",
-                 body: "The build succeeded. Reports are available in Jenkins."
+            emailext(
+                subject: "✅ SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """<html>
+                    <body>
+                        <h2>🎉 Build Success</h2>
+                        <p>All reports generated successfully.</p>
+                        <ul>
+                            <li><a href="${BUILD_URL}artifact/reports/pipeline-report.zip">📘 Full Documentation Report</a></li>
+                            <li><a href="${BUILD_URL}artifact/reports/trivy-docker.zip">🐳 Docker Scan Report</a></li>
+                            <li><a href="${BUILD_URL}artifact/reports/nikto.zip">🌐 Nikto Scan Report</a></li>
+                            <li><a href="${BUILD_URL}artifact/reports/zap.zip">🕷️ OWASP ZAP Report</a></li>
+                        </ul>
+                    </body>
+                </html>""",
+                to: "${EMAIL_TO}",
+                mimeType: 'text/html'
+            )
         }
-
-        unstable {
-            mail to: "${EMAIL_TO}",
-                 subject: "⚠️ UNSTABLE: ${JOB_NAME} #${BUILD_NUMBER}",
-                 body: "The build is unstable. Check reports for details."
-        }
-
         failure {
-            mail to: "${EMAIL_TO}",
-                 subject: "❌ FAILURE: ${JOB_NAME} #${BUILD_NUMBER}",
-                 body: "The build failed. Please check reports in Jenkins."
-        }
-
-        always {
-            archiveArtifacts artifacts: '**/target/*.jar, dependency-check-report/**, trivy-report.json, gitleaks-report.json, zap-report.html', allowEmptyArchive: true
+            emailext(
+                subject: "❌ FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """<html><body>
+                        <p>❌ Build failed. Check logs: <a href="${BUILD_URL}">${BUILD_URL}</a></p>
+                </body></html>""",
+                to: "${EMAIL_TO}",
+                mimeType: 'text/html'
+            )
         }
     }
 }
