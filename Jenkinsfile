@@ -8,7 +8,7 @@ pipeline {
         GIT_BRANCH = "main"
         SONAR_PROJECT_KEY = "Employees"
         SNYK_BINARY = "/usr/local/bin/snyk"
-        APP_URL = "http://192.168.13.8:8080"
+        APP_URL = "http://192.168.13.8:8060"
         PROMETHEUS_URL = "http://192.168.13.8:9090"
         GRAFANA_URL = "http://192.168.13.8:3000"
     }
