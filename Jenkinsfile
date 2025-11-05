@@ -13,8 +13,8 @@ pipeline {
     }
 
     triggers {
-        // Automatically run on each push or PR (for multibranch pipelines)
-        pollSCM('* * * * *') // check repo every minute
+        // Every minute (or replace with GitHub hook if you configure webhook)
+        pollSCM('* * * * *')
     }
 
     tools {
@@ -66,8 +66,8 @@ pipeline {
                     trivy image ${APP_IMAGE} \
                         --exit-code 0 \
                         --format html \
-                        --output ${REPORT_DIR}/trivy-docker.html
-                    zip ${REPORT_DIR}/trivy-docker.zip ${REPORT_DIR}/trivy-docker.html
+                        --output \${REPORT_DIR}/trivy-docker.html
+                    zip \${REPORT_DIR}/trivy-docker.zip \${REPORT_DIR}/trivy-docker.html
                 """
                 archiveArtifacts artifacts: "${REPORT_DIR}/trivy-docker.zip", onlyIfSuccessful: true
             }
@@ -80,9 +80,9 @@ pipeline {
                     docker run -d -p 8080:8080 ${APP_IMAGE}
                     sleep 20
                     mkdir -p ${REPORT_DIR}
-                    nikto -h ${APP_URL} -o ${REPORT_DIR}/nikto.html -Format htm || true
-                    zip ${REPORT_DIR}/nikto.zip ${REPORT_DIR}/nikto.html
-                    docker stop $(docker ps -q --filter ancestor=${APP_IMAGE})
+                    nikto -h ${APP_URL} -o \${REPORT_DIR}/nikto.html -Format htm || true
+                    zip \${REPORT_DIR}/nikto.zip \${REPORT_DIR}/nikto.html
+                    docker stop \$(docker ps -q --filter ancestor=${APP_IMAGE})
                 """
                 archiveArtifacts artifacts: "${REPORT_DIR}/nikto.zip", onlyIfSuccessful: true
             }
@@ -92,9 +92,10 @@ pipeline {
             steps {
                 echo "🕷️ Running OWASP ZAP scan..."
                 sh """
-                    docker run --rm -v $(pwd):/zap/wrk:rw ghcr.io/zaproxy/zaproxy:stable \
-                        zap-baseline.py -t ${APP_URL} -r ${REPORT_DIR}/zap.html || true
-                    zip ${REPORT_DIR}/zap.zip ${REPORT_DIR}/zap.html
+                    mkdir -p ${REPORT_DIR}
+                    docker run --rm -v \$(pwd):/zap/wrk:rw ghcr.io/zaproxy/zaproxy:stable \
+                        zap-baseline.py -t ${APP_URL} -r \${REPORT_DIR}/zap.html || true
+                    zip \${REPORT_DIR}/zap.zip \${REPORT_DIR}/zap.html
                 """
                 archiveArtifacts artifacts: "${REPORT_DIR}/zap.zip", onlyIfSuccessful: true
             }
@@ -117,13 +118,13 @@ pipeline {
                 echo "📝 Generating security and CI/CD documentation..."
                 sh """
                     mkdir -p ${REPORT_DIR}
-                    cat > ${REPORT_DIR}/pipeline-report.md <<EOF
+                    cat > \${REPORT_DIR}/pipeline-report.md <<EOF
 # CI/CD DevSecOps Pipeline Report
 
 ## 🔧 Build Information
 - Project: ${SONAR_PROJECT_KEY}
 - Build Number: ${BUILD_NUMBER}
-- Date: $(date)
+- Date: \$(date)
 
 ## ⚙️ Steps Executed
 1. Checkout Code
@@ -148,7 +149,7 @@ This CI/CD pipeline enforces security best practices:
 - Automated vulnerability detection
 - Continuous delivery readiness
 EOF
-                    zip ${REPORT_DIR}/pipeline-report.zip ${REPORT_DIR}/pipeline-report.md
+                    zip \${REPORT_DIR}/pipeline-report.zip \${REPORT_DIR}/pipeline-report.md
                 """
                 archiveArtifacts artifacts: "${REPORT_DIR}/pipeline-report.zip"
             }
