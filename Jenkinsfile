@@ -11,6 +11,7 @@ pipeline {
         APP_URL = "http://192.168.13.8:8060"
         PROMETHEUS_URL = "http://192.168.13.8:9090"
         GRAFANA_URL = "http://192.168.13.8:3000"
+        PROMETHEUS_PUSHGATEWAY = "http://192.168.13.8:9091"
     }
 
     options {
@@ -21,6 +22,10 @@ pipeline {
     tools {
         maven 'Maven'
         jdk 'JDK17'
+    }
+
+    triggers {
+        cron('H/2 * * * *') // Run every 2 minutes
     }
 
     stages {
@@ -36,7 +41,7 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                echo "📦 Checking out project source code..."
+                echo "Checking out project source code..."
                 git branch: "${GIT_BRANCH}", url: "${GIT_URL}", credentialsId: 'git-token'
             }
         }
@@ -73,6 +78,22 @@ pipeline {
                 echo "Building Maven project..."
                 sh 'mvn clean package -DskipTests'
                 archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: true
+            }
+        }
+
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    echo "Building Docker image and pushing to DockerHub..."
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                        sh """
+                            docker build -t employees-app:${BUILD_NUMBER} .
+                            docker tag employees-app:${BUILD_NUMBER} \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
+                            echo \$DOCKERHUB_PASSWORD | docker login -u \$DOCKERHUB_USERNAME --password-stdin
+                            docker push \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
+                        """
+                    }
+                }
             }
         }
 
@@ -155,7 +176,7 @@ pipeline {
                     echo "Sending build metrics to Prometheus Pushgateway..."
                     def durationSeconds = currentBuild.duration / 1000
                     sh """
-                        cat <<EOF | curl --data-binary @- http://localhost:9091/metrics/job/${JOB_NAME}/build/${BUILD_NUMBER}
+                        cat <<EOF | curl --data-binary @- ${PROMETHEUS_PUSHGATEWAY}/metrics/job/${JOB_NAME}/build/${BUILD_NUMBER}
 jenkins_build_status{job="${JOB_NAME}",build="${BUILD_NUMBER}"} 1
 jenkins_build_duration_seconds{job="${JOB_NAME}",build="${BUILD_NUMBER}"} ${durationSeconds}
 EOF
@@ -169,13 +190,13 @@ EOF
         success {
             echo "Build succeeded — exporting Prometheus success metric..."
             sh """
-                echo 'jenkins_job_success{job="${JOB_NAME}"} 1' | curl --data-binary @- http://localhost:9091/metrics/job/jenkins_success
+                echo 'jenkins_job_success{job="${JOB_NAME}"} 1' | curl --data-binary @- ${PROMETHEUS_PUSHGATEWAY}/metrics/job/jenkins_success
             """
             emailext(
                 subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """<html>
                     <body>
-                        <p>hi takwa, Jenkins pipeline succeeded!</p>
+                        <p>Hi Takwa, Jenkins pipeline succeeded!</p>
                         <ul>
                             <li><a href="${PROMETHEUS_URL}">Prometheus Dashboard</a></li>
                             <li><a href="${GRAFANA_URL}">Grafana Dashboard</a></li>
@@ -196,7 +217,7 @@ EOF
         failure {
             echo "Build failed — exporting failure metric..."
             sh """
-                echo 'jenkins_job_failed{job="${JOB_NAME}"} 1' | curl --data-binary @- http://localhost:9091/metrics/job/jenkins_failure
+                echo 'jenkins_job_failed{job="${JOB_NAME}"} 1' | curl --data-binary @- ${PROMETHEUS_PUSHGATEWAY}/metrics/job/jenkins_failure
             """
             emailext(
                 subject: "FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
@@ -213,6 +234,7 @@ EOF
 
         always {
             archiveArtifacts artifacts: 'target/*.jar, target/site/jacoco/**/*, trivy-report.zip, snyk-report.zip, gitleaks-report.zip, nikto-report.zip, zap-report.zip', allowEmptyArchive: true
+            cleanWs()
         }
     }
 }
