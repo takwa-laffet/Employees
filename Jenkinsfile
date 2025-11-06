@@ -24,9 +24,6 @@ pipeline {
         jdk 'JDK17'
     }
 
-    triggers {
-        cron('H/2 * * * *') // Run every 2 minutes
-    }
 
     stages {
 
