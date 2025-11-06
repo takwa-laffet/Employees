@@ -29,7 +29,7 @@ pipeline {
             steps {
                 script {
                     env.TODAY = sh(script: "date +%F", returnStdout: true).trim()
-                    echo "✅ Pipeline initialized on ${env.TODAY}"
+                    echo "Pipeline initialized on ${env.TODAY}"
                 }
             }
         }
@@ -175,7 +175,7 @@ EOF
                 subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """<html>
                     <body>
-                        <p>Jenkins pipeline succeeded!</p>
+                        <p>hi takwa, Jenkins pipeline succeeded!</p>
                         <ul>
                             <li><a href="${PROMETHEUS_URL}">Prometheus Dashboard</a></li>
                             <li><a href="${GRAFANA_URL}">Grafana Dashboard</a></li>
