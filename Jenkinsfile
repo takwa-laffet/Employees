@@ -43,19 +43,19 @@ pipeline {
 
         stage('Setup Database') {
             steps {
-                echo "🗄️ Ensuring MySQL is running and database exists..."
+                echo "Ensuring MySQL is running and database exists..."
                 sh '''
                     sudo service mysql start || true
                     sleep 5
                     mysql -u root -proot -e "CREATE DATABASE IF NOT EXISTS employee_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
                 '''
-                echo "✅ Database employee_db is ready."
+                echo "Database employee_db is ready."
             }
         }
 
         stage('Security Scan - Gitleaks') {
             steps {
-                echo "🔒 Running Gitleaks secret scan..."
+                echo "Running Gitleaks secret scan..."
                 sh '''
                     gitleaks detect \
                         --source . \
@@ -70,7 +70,7 @@ pipeline {
 
         stage('Build Project') {
             steps {
-                echo "🏗️ Building Maven project..."
+                echo "Building Maven project..."
                 sh 'mvn clean package -DskipTests'
                 archiveArtifacts artifacts: 'target/*.jar', onlyIfSuccessful: true
             }
@@ -78,7 +78,7 @@ pipeline {
 
         stage('Test & Coverage - JaCoCo') {
             steps {
-                echo "🧪 Running tests and generating JaCoCo coverage..."
+                echo "Running tests and generating JaCoCo coverage..."
                 sh 'mvn test jacoco:report'
                 archiveArtifacts artifacts: 'target/site/jacoco/**/*', allowEmptyArchive: true
             }
@@ -86,7 +86,7 @@ pipeline {
 
         stage('Security Scan - Trivy') {
             steps {
-                echo "🔐 Running Trivy scan..."
+                echo "Running Trivy scan..."
                 sh '''
                     trivy fs . \
                         --exit-code 0 \
@@ -104,7 +104,7 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'snyk-token', variable: 'SNYK_TOKEN')]) {
                     sh """
-                        echo '🔐 Running Snyk vulnerability scan...'
+                        echo 'Running Snyk vulnerability scan...'
                         ${SNYK_BINARY} auth \$SNYK_TOKEN
                         ${SNYK_BINARY} test --json > snyk-report.json || true
                         zip snyk-report.zip snyk-report.json
@@ -116,7 +116,7 @@ pipeline {
 
         stage('SAST - SonarQube Analysis') {
             steps {
-                echo "🔍 Running SonarQube analysis..."
+                echo "Running SonarQube analysis..."
                 withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
                     sh """mvn sonar:sonar \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
@@ -128,7 +128,7 @@ pipeline {
 
         stage('Security Scan - Nikto') {
             steps {
-                echo "🌐 Running Nikto scan..."
+                echo "Running Nikto scan..."
                 sh """
                     nikto -h ${APP_URL} -o nikto-report.html -Format htm || true
                     zip nikto-report.zip nikto-report.html
@@ -139,7 +139,7 @@ pipeline {
 
         stage('Security Scan - OWASP ZAP') {
             steps {
-                echo "🕷️ Running OWASP ZAP baseline scan..."
+                echo "Running OWASP ZAP baseline scan..."
                 sh """
                     docker run --rm -v \$(pwd):/zap/wrk:rw ghcr.io/zaproxy/zaproxy:stable \
                         zap-baseline.py -t ${APP_URL} -r zap-report.html || true
@@ -152,7 +152,7 @@ pipeline {
         stage('Export Metrics to Prometheus') {
             steps {
                 script {
-                    echo "📊 Sending build metrics to Prometheus Pushgateway..."
+                    echo "Sending build metrics to Prometheus Pushgateway..."
                     def durationSeconds = currentBuild.duration / 1000
                     sh """
                         cat <<EOF | curl --data-binary @- http://localhost:9091/metrics/job/${JOB_NAME}/build/${BUILD_NUMBER}
@@ -167,15 +167,15 @@ EOF
 
     post {
         success {
-            echo "✅ Build succeeded — exporting Prometheus success metric..."
+            echo "Build succeeded — exporting Prometheus success metric..."
             sh """
                 echo 'jenkins_job_success{job="${JOB_NAME}"} 1' | curl --data-binary @- http://localhost:9091/metrics/job/jenkins_success
             """
             emailext(
-                subject: "✅ SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """<html>
                     <body>
-                        <p>🎉 Jenkins pipeline succeeded!</p>
+                        <p>Jenkins pipeline succeeded!</p>
                         <ul>
                             <li><a href="${PROMETHEUS_URL}">Prometheus Dashboard</a></li>
                             <li><a href="${GRAFANA_URL}">Grafana Dashboard</a></li>
@@ -194,15 +194,15 @@ EOF
         }
 
         failure {
-            echo "❌ Build failed — exporting failure metric..."
+            echo "Build failed — exporting failure metric..."
             sh """
                 echo 'jenkins_job_failed{job="${JOB_NAME}"} 1' | curl --data-binary @- http://localhost:9091/metrics/job/jenkins_failure
             """
             emailext(
-                subject: "❌ FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """<html>
                     <body>
-                        <p>❌ Jenkins pipeline failed!</p>
+                        <p>Jenkins pipeline failed!</p>
                         <p>See logs: <a href="${BUILD_URL}">${BUILD_URL}</a></p>
                     </body>
                 </html>""",
