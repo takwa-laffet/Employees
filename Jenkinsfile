@@ -143,6 +143,18 @@ pipeline {
             }
         }
 
+        stage('Deploy App for Scanning') {
+            steps {
+                echo "Deploying Employee App locally for security scanning..."
+                sh '''
+                    docker stop employees-app-test || true
+                    docker rm employees-app-test || true
+                    docker run -d --name employees-app-test -p 8060:8080 employees-app:${BUILD_NUMBER}
+                    sleep 10
+                '''
+            }
+        }
+
         stage('Security Scan - Nikto') {
             steps {
                 echo "Running Nikto scan..."
@@ -232,6 +244,7 @@ EOF
         }
 
         always {
+            sh 'docker stop employees-app-test || true && docker rm employees-app-test || true'
             archiveArtifacts artifacts: 'target/*.jar, target/site/jacoco/**/*, trivy-report.zip, snyk-report.zip, gitleaks-report.zip, nikto-report.zip, zap-report.zip', allowEmptyArchive: true
             cleanWs()
         }
