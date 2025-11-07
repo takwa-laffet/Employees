@@ -23,6 +23,7 @@ pipeline {
         maven 'Maven'
         jdk 'JDK17'
     }
+
     stages {
 
         stage('Init') {
@@ -156,11 +157,14 @@ pipeline {
         stage('Security Scan - OWASP ZAP') {
             steps {
                 echo "Running OWASP ZAP baseline scan..."
-                sh """
-                    docker run --rm -v \$(pwd):/zap/wrk:rw ghcr.io/zaproxy/zaproxy:stable \
-                        zap-baseline.py -t ${APP_URL} -r zap-report.html || true
+                sh '''
+                    docker run --rm --user root \
+                        -v $(pwd):/zap/wrk:rw \
+                        ghcr.io/zaproxy/zaproxy:stable \
+                        bash -c "chmod -R 777 /zap/wrk && zap-baseline.py -t ${APP_URL} -r zap-report.html || true"
+                    
                     zip zap-report.zip zap-report.html
-                """
+                '''
                 archiveArtifacts artifacts: 'zap-report.zip', onlyIfSuccessful: true
             }
         }
