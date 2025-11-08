@@ -4,14 +4,14 @@ pipeline {
     environment {
         // Application Settings
         APP_NAME = 'employees-app'
-        APP_PORT = '8080'
+        APP_PORT = '8060'
         
         // Database Settings
         DB_NAME = 'employee_db'
         DB_PORT = '3306'
         
         // Tool Configurations
-        JAVA_HOME = tool 'JDK21'
+        JAVA_HOME = tool 'JDK17'
         MAVEN_HOME = tool 'Maven'
         
         // Docker Settings
