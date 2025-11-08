@@ -1,0 +1,32 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: check-merge-conflict
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint
+        args: ['--ignore', 'DL3013']
+
+  - repo: local
+    hooks:
+      - id: mvn-test
+        name: Run Maven Tests
+        entry: mvn test
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+      - id: spotless
+        name: Spotless Check
+        entry: mvn spotless:check
+        language: system
+        pass_filenames: false
+        stages: [commit]

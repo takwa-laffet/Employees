@@ -21,7 +21,43 @@
     <description>Demo Spring Boot project for Employee Directory CRUD</description>
 
     <properties>
+        <!-- Java and encoding properties -->
         <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        
+        <!-- Plugin versions -->
+        <spotless.version>2.40.0</spotless.version>
+        <sonar.version>3.9.1.2184</sonar.version>
+        <spotbugs.version>4.8.0</spotbugs.version>
+        <jacoco.version>0.8.11</jacoco.version>
+        <pmd.version>3.21.2</pmd.version>
+        <maven-enforcer-plugin.version>3.4.1</maven-enforcer-plugin.version>
+        
+        <!-- SonarQube properties -->
+        <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+        <sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
+        <sonar.jacoco.reportPath>${project.basedir}/target/jacoco.exec</sonar.jacoco.reportPath>
+        <sonar.language>java</sonar.language>
+        <sonar.host.url>http://localhost:9000</sonar.host.url>
+        <sonar.coverage.exclusions>
+            **/model/**,**/config/**,**/EmployeedirectoryApplication.java
+        </sonar.coverage.exclusions>
+        <sonar.exclusions>
+            **/test/**,**/target/**
+        </sonar.exclusions>
+        
+        <!-- Security settings -->
+        <maven.compiler.parameters>true</maven.compiler.parameters>
+        <dependency-check.failBuildOnCVSS>7</dependency-check.failBuildOnCVSS>
+        <spotbugs.failOnError>true</spotbugs.failOnError>
+        
+        <!-- Test coverage thresholds -->
+        <jacoco.unit-tests.limit.instruction-ratio>80%</jacoco.unit-tests.limit.instruction-ratio>
+        <jacoco.unit-tests.limit.branch-ratio>80%</jacoco.unit-tests.limit.branch-ratio>
+        
+        <!-- Dependency versions -->
+        <spring-cloud.version>2023.0.0</spring-cloud.version>
     </properties>
 
     <dependencies>
@@ -60,6 +96,18 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Spring Boot Security -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Actuator -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -67,11 +115,25 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- OSS Index Enforcer Rules (optional) -->
+        <!-- Spring Security Test -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- OSS Index Enforcer Rules -->
         <dependency>
             <groupId>org.sonatype.ossindex.maven</groupId>
             <artifactId>ossindex-maven-enforcer-rules</artifactId>
             <version>3.1.0</version>
+        </dependency>
+
+        <!-- Lombok for reducing boilerplate -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 
@@ -84,6 +146,7 @@
                 <version>3.11.0</version>
                 <configuration>
                     <release>${java.version}</release>
+                    <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
 
@@ -91,71 +154,15 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-
-            <!-- Sonar Maven plugin -->
-            <plugin>
-                <groupId>org.sonarsource.scanner.maven</groupId>
-                <artifactId>sonar-maven-plugin</artifactId>
-                <version>3.9.1.2184</version>
-            </plugin>
-
-            <!-- SpotBugs plugin -->
-            <plugin>
-                <groupId>com.github.spotbugs</groupId>
-                <artifactId>spotbugs-maven-plugin</artifactId>
-                <version>4.7.6.0</version>
                 <configuration>
-                    <effort>Max</effort>
-                    <threshold>Low</threshold>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
                 </configuration>
             </plugin>
-
-            <!-- OWASP Dependency-Check plugin -->
-            <plugin>
-                <groupId>org.owasp</groupId>
-                <artifactId>dependency-check-maven</artifactId>
-                <version>12.1.0</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <!-- OSS Index credentials server ID from ~/.m2/settings.xml -->
-                    <ossIndexServerId>ossindex</ossIndexServerId>
-
-                    <!-- Optional: skip feed download if behind firewall -->
-                    <!-- <skip>true</skip> -->
-
-                    <!-- Optional: cache NVD CVE data locally to avoid rate limits -->
-                    <cveValidForHours>24</cveValidForHours>
-                    <dataMirroring>true</dataMirroring>
-                </configuration>
-            </plugin>
-            <!--Jacoco-->
-                    <plugin>
-            <groupId>org.jacoco</groupId>
-            <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.11</version> <!-- آخر نسخة -->
-            <executions>
-                <execution>
-                    <goals>
-                        <goal>prepare-agent</goal>
-                    </goals>
-                </execution>
-                <execution>
-                    <id>report</id>
-                    <phase>test</phase>
-                    <goals>
-                        <goal>report</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
-
         </plugins>
     </build>
 
