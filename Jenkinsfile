@@ -27,11 +27,17 @@ pipeline {
 
     stages {
 
-        stage('Init') {
+        stage('Init & Cleanup') {
             steps {
                 script {
                     env.TODAY = sh(script: "date +%F", returnStdout: true).trim()
                     echo "Pipeline initialized on ${env.TODAY}"
+                    
+                    echo "Deleting old scan reports..."
+                    sh '''
+                        rm -f gitleaks-report.* trivy-report.* snyk-report.* \
+                               nikto-report.* zap-report.* target/site/jacoco/**/* || true
+                    '''
                 }
             }
         }
@@ -89,23 +95,12 @@ pipeline {
                         passwordVariable: 'DOCKERHUB_PASSWORD')]) {
 
                         echo "Building Docker images..."
-
-                        // Build and tag app image
                         sh """
                             docker build -t employees-app:${BUILD_NUMBER} .
                             docker tag employees-app:${BUILD_NUMBER} \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
                             timeout 120s docker login -u \$DOCKERHUB_USERNAME --password-stdin <<< \$DOCKERHUB_PASSWORD
                             docker push \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
-                        """
-                        // Tag database image for push
-                        sh """
                             docker tag ${MYSQL_IMAGE} \$DOCKERHUB_USERNAME/employees-db:${BUILD_NUMBER}
-                        """
-
-                        // Push both images
-                        sh """
-                            echo \$DOCKERHUB_PASSWORD | docker login -u \$DOCKERHUB_USERNAME --password-stdin
-                            docker push \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
                             docker push \$DOCKERHUB_USERNAME/employees-db:${BUILD_NUMBER}
                         """
 
