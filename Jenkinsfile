@@ -94,8 +94,9 @@ pipeline {
                         sh """
                             docker build -t employees-app:${BUILD_NUMBER} .
                             docker tag employees-app:${BUILD_NUMBER} \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
+                            timeout 120s docker login -u \$DOCKERHUB_USERNAME --password-stdin <<< \$DOCKERHUB_PASSWORD
+                            docker push \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
                         """
-
                         // Tag database image for push
                         sh """
                             docker tag ${MYSQL_IMAGE} \$DOCKERHUB_USERNAME/employees-db:${BUILD_NUMBER}
