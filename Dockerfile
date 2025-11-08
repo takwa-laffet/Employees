@@ -6,11 +6,13 @@ COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
 # ---- Stage 2: Build ----
-FROM maven:3.9.9-eclipse-temurin-21-slim AS builder
+FROM maven:3.9.9-eclipse-temurin-17 AS builder
 WORKDIR /app
-COPY --from=deps /root/.m2 /root/.m2
+COPY pom.xml .
+RUN mvn dependency:go-offline
 COPY . .
-RUN mvn clean package -DskipTests -Dmaven.test.skip=true
+RUN mvn clean package -DskipTests
+
 
 # ---- Stage 3: Security Scan ----
 FROM aquasec/trivy:0.47.0 AS security-scan
@@ -18,8 +20,12 @@ COPY --from=builder /app/target/*.jar /app/app.jar
 RUN trivy fs --severity HIGH,CRITICAL --no-progress /app
 
 # ---- Stage 4: Run ----
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
+COPY --from=builder /app/target/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
 
 # Add non-root user
 RUN addgroup --system --gid 1001 appuser && \
