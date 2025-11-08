@@ -9,10 +9,7 @@ pipeline {
         SONAR_PROJECT_KEY = "Employees"
         SNYK_BINARY = "/usr/local/bin/snyk"
         APP_URL = "http://192.168.13.8:8060"
-        PROMETHEUS_URL = "http://192.168.13.8:9090"
-        GRAFANA_URL = "http://192.168.13.8:3000"
         PROMETHEUS_PUSHGATEWAY = "http://192.168.13.8:9091"
-        MYSQL_IMAGE = "mysql:8.0"
     }
 
     tools {
@@ -49,23 +46,6 @@ pipeline {
             }
         }
 
-        stage('Setup Database in Docker') {
-            steps {
-                echo "Starting MySQL container..."
-                sh '''
-                    docker rm -f mysql-container || true
-                    docker run -d --name mysql-container \
-                        -e MYSQL_ROOT_PASSWORD=root \
-                        -e MYSQL_DATABASE=employee_db \
-                        -e MYSQL_USER=takwa \
-                        -e MYSQL_PASSWORD=1212@Laffet \
-                        -p 3306:3306 ${MYSQL_IMAGE}
-                    sleep 20
-                '''
-                echo "MySQL is ready."
-            }
-        }
-
         stage('Security Scan - Gitleaks') {
             steps {
                 echo "Running Gitleaks secret scan..."
@@ -87,26 +67,20 @@ pipeline {
             }
         }
 
-        stage('Docker Build & Push (App + Database)') {
+        stage('Docker Build & Push App') {
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
                         usernameVariable: 'DOCKERHUB_USERNAME',
                         passwordVariable: 'DOCKERHUB_PASSWORD')]) {
 
-                        echo "Building Docker images..."
+                        echo "Building Docker image..."
                         sh """
                             docker build -t employees-app:${BUILD_NUMBER} .
                             docker tag employees-app:${BUILD_NUMBER} \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
-                            docker tag ${MYSQL_IMAGE} \$DOCKERHUB_USERNAME/employees-db:${BUILD_NUMBER}
-                            
-                            # Login once and push both images
-                            echo \$DOCKERHUB_PASSWORD | timeout 120s docker login -u \$DOCKERHUB_USERNAME --password-stdin
+                            echo \$DOCKERHUB_PASSWORD | docker login -u \$DOCKERHUB_USERNAME --password-stdin
                             docker push \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
-                            docker push \$DOCKERHUB_USERNAME/employees-db:${BUILD_NUMBER}
                         """
-
-                        echo "App and DB images pushed to DockerHub."
                     }
                 }
             }
@@ -114,7 +88,7 @@ pipeline {
 
         stage('Test & Coverage - JaCoCo') {
             steps {
-                echo "Running tests..."
+                echo "Running tests with JaCoCo..."
                 sh 'mvn test jacoco:report'
                 archiveArtifacts artifacts: 'target/site/jacoco/**/*', allowEmptyArchive: true
             }
@@ -159,19 +133,15 @@ pipeline {
             }
         }
 
-        stage('Deploy Containers for Testing') {
+        stage('Deploy App for Testing') {
             steps {
-                echo "Deploying both containers..."
-                sh '''
+                echo "Running Spring Boot app in Docker for tests..."
+                sh """
                     docker rm -f employees-app-test || true
                     docker run -d --name employees-app-test \
-                        --link mysql-container:mysql \
-                        -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/employee_db?useSSL=false&serverTimezone=UTC \
-                        -e SPRING_DATASOURCE_USERNAME=takwa \
-                        -e SPRING_DATASOURCE_PASSWORD=1212@Laffet \
                         -p 8060:8080 employees-app:${BUILD_NUMBER}
                     sleep 15
-                '''
+                """
             }
         }
 
@@ -223,7 +193,7 @@ EOF
                 body: """<html>
                     <body>
                         <h3>DevSecOps Pipeline Success 🎉</h3>
-                        <p>Backend and database images have been pushed to Docker Hub.</p>
+                        <p>Application image has been pushed to Docker Hub.</p>
                         <ul>
                             <li><a href="${SONAR_HOST}/dashboard?id=${SONAR_PROJECT_KEY}">SonarQube Results</a></li>
                             <li><a href="${BUILD_URL}artifact/trivy-report.zip">Trivy Report</a></li>
@@ -254,8 +224,8 @@ EOF
         always {
             echo "🧹 Cleaning up containers..."
             sh '''
-                docker stop employees-app-test mysql-container || true
-                docker rm employees-app-test mysql-container || true
+                docker stop employees-app-test || true
+                docker rm employees-app-test || true
             '''
             cleanWs()
         }
