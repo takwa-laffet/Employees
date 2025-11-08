@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-container
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: employee_db
+      MYSQL_USER: takwa
+      MYSQL_PASSWORD: 1212@Laffet
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  backend:
+    build: .
+    container_name: taskmanager-backend
+    restart: always
+    depends_on:
+      - mysql
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/employee_db?useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: takwa
+      SPRING_DATASOURCE_PASSWORD: 1212@Laffet
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "8060:8080"
+
+volumes:
+  mysql_data:
