@@ -2,46 +2,16 @@ pipeline {
     agent any
 
     environment {
-        // Application Settings
-        APP_NAME = 'employees-app'
-        APP_PORT = '8060'
-        
-        // Database Settings
-        DB_NAME = 'employee_db'
-        DB_PORT = '3306'
-        
-        // Tool Configurations
-        JAVA_HOME = tool 'JDK17'
-        MAVEN_HOME = tool 'Maven'
-        
-        // Docker Settings
-        DOCKER_REGISTRY = 'docker.io'
-        DOCKER_IMAGE = "${env.DOCKER_REGISTRY}/takwa-laffet/${APP_NAME}"
-        DOCKER_CREDENTIALS = 'dockerhub-credentials'
-        
-        // Monitoring & Security
-        SONAR_HOST = credentials('sonar-host')
-        SONAR_TOKEN = credentials('sonar-token')
-        SONAR_PROJECT_KEY = 'Employees'
-        
-        // Notification Settings
-        EMAIL_TO = 'takwa.laffet@esprit.tn'
-        
-        // Build Info
-        BUILD_TIMESTAMP = sh(script: 'date "+%Y%m%d_%H%M%S"', returnStdout: true).trim()
-        GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-        
-        // Version Control
-        GIT_URL = 'https://github.com/takwa-laffet/Employees.git'
-        GIT_BRANCH = 'main'
-        
-        // Test & Coverage Settings
-        JACOCO_EXEC_PATH = 'target/jacoco.exec'
-        TEST_RESULTS_PATH = 'target/surefire-reports'
-        
-        // Security Tools
-        OWASP_REPORT_PATH = 'target/dependency-check-report.html'
-        SPOTBUGS_REPORT_PATH = 'target/spotbugs/spotbugs.html'
+        SONAR_HOST = "http://192.168.13.8:9000"
+        EMAIL_TO = "takwa.laffet@esprit.tn"
+        GIT_URL = "https://github.com/takwa-laffet/Employees.git"
+        GIT_BRANCH = "main"
+        SONAR_PROJECT_KEY = "Employees"
+        SNYK_BINARY = "/usr/local/bin/snyk"
+        APP_URL = "http://192.168.13.8:8060"
+        PROMETHEUS_URL = "http://192.168.13.8:9090"
+        GRAFANA_URL = "http://192.168.13.8:3000"
+        PROMETHEUS_PUSHGATEWAY = "http://192.168.13.8:9091"
     }
 
     options {
@@ -52,15 +22,6 @@ pipeline {
     tools {
         maven 'Maven'
         jdk 'JDK17'
-    }
-    
-    options {
-        timeout(time: 60, unit: 'MINUTES')
-        durabilityHint('PERFORMANCE_OPTIMIZED')
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-        timestamps()
-        disableConcurrentBuilds()
-        ansiColor('xterm')
     }
 
     stages {
