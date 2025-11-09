@@ -46,24 +46,76 @@ pipeline {
             }
         }
 
-        stage('Security Scan - Gitleaks') {
-            steps {
-                echo "Running Gitleaks secret scan..."
-                sh '''
-                    gitleaks detect --source . \
-                        --report-format json \
-                        --report-path gitleaks-report.json || true
-                    zip gitleaks-report.zip gitleaks-report.json
-                '''
-                archiveArtifacts artifacts: 'gitleaks-report.zip', allowEmptyArchive: true
-            }
-        }
-
         stage('Build Spring Boot App') {
             steps {
                 echo "Building with Maven..."
                 sh 'mvn clean package -DskipTests'
                 archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
+            }
+        }
+
+        stage('Security Scans (Parallel)') {
+            parallel {
+                
+                stage('Security Scan - Gitleaks') {
+                    steps {
+                        echo "Running Gitleaks secret scan..."
+                        sh '''
+                            gitleaks detect --source . \
+                                --report-format json \
+                                --report-path gitleaks-report.json || true
+                            zip gitleaks-report.zip gitleaks-report.json
+                        '''
+                        archiveArtifacts artifacts: 'gitleaks-report.zip', allowEmptyArchive: true
+                    }
+                }
+
+                stage('Security Scan - Trivy') {
+                    steps {
+                        echo "Scanning source code with Trivy..."
+                        sh '''
+                            trivy fs . --exit-code 0 \
+                                --severity HIGH,CRITICAL \
+                                --format template \
+                                --template "@/usr/local/share/trivy/templates/html.tpl" \
+                                --output trivy-report.html
+                            zip trivy-report.zip trivy-report.html
+                        '''
+                        archiveArtifacts artifacts: 'trivy-report.zip', allowEmptyArchive: true
+                    }
+                }
+
+                stage('Security Scan - Snyk') {
+                    steps {
+                        withCredentials([string(credentialsId: 'snyk-token', variable: 'SNYK_TOKEN')]) {
+                            sh """
+                                ${SNYK_BINARY} auth \$SNYK_TOKEN
+                                ${SNYK_BINARY} test --json > snyk-report.json || true
+                                zip snyk-report.zip snyk-report.json
+                            """
+                        }
+                        archiveArtifacts artifacts: 'snyk-report.zip', allowEmptyArchive: true
+                    }
+                }
+            }
+        }
+
+        stage('Test & Coverage - JaCoCo') {
+            steps {
+                echo "Running tests with JaCoCo..."
+                sh 'mvn test jacoco:report'
+                archiveArtifacts artifacts: 'target/site/jacoco/**/*', allowEmptyArchive: true
+            }
+        }
+
+        stage('SAST - SonarQube') {
+            steps {
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    sh """mvn sonar:sonar \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                        -Dsonar.host.url=${SONAR_HOST} \
+                        -Dsonar.login=\$SONAR_TOKEN"""
+                }
             }
         }
 
@@ -82,53 +134,6 @@ pipeline {
                             docker push \$DOCKERHUB_USERNAME/employees-app:${BUILD_NUMBER}
                         """
                     }
-                }
-            }
-        }
-
-        stage('Test & Coverage - JaCoCo') {
-            steps {
-                echo "Running tests with JaCoCo..."
-                sh 'mvn test jacoco:report'
-                archiveArtifacts artifacts: 'target/site/jacoco/**/*', allowEmptyArchive: true
-            }
-        }
-
-        stage('Security Scan - Trivy') {
-            steps {
-                echo "Scanning source code with Trivy..."
-                sh '''
-                    trivy fs . --exit-code 0 \
-                        --severity HIGH,CRITICAL \
-                        --format template \
-                        --template "@/usr/local/share/trivy/templates/html.tpl" \
-                        --output trivy-report.html
-                    zip trivy-report.zip trivy-report.html
-                '''
-                archiveArtifacts artifacts: 'trivy-report.zip', allowEmptyArchive: true
-            }
-        }
-
-        stage('Security Scan - Snyk') {
-            steps {
-                withCredentials([string(credentialsId: 'snyk-token', variable: 'SNYK_TOKEN')]) {
-                    sh """
-                        ${SNYK_BINARY} auth \$SNYK_TOKEN
-                        ${SNYK_BINARY} test --json > snyk-report.json || true
-                        zip snyk-report.zip snyk-report.json
-                    """
-                }
-                archiveArtifacts artifacts: 'snyk-report.zip', allowEmptyArchive: true
-            }
-        }
-
-        stage('SAST - SonarQube') {
-            steps {
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                    sh """mvn sonar:sonar \
-                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                        -Dsonar.host.url=${SONAR_HOST} \
-                        -Dsonar.login=\$SONAR_TOKEN"""
                 }
             }
         }
